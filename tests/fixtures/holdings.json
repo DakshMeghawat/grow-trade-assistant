@@ -1,0 +1,19 @@
+{
+  "status": "SUCCESS",
+  "payload": {
+    "holdings": [
+      {
+        "isin": "INE002A01018",
+        "trading_symbol": "RELIANCE",
+        "quantity": 10,
+        "average_price": 2400.0
+      },
+      {
+        "isin": "INE467B01029",
+        "trading_symbol": "TCS",
+        "quantity": 5,
+        "average_price": 3500.0
+      }
+    ]
+  }
+}

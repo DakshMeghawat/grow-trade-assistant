@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grow Trade Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="logo">Grow <span>Trade</span> Assistant</div>
+    <nav class="view-nav" id="viewNav">
+      <button type="button" class="view-btn active" data-view="overview">Plan</button>
+      <button type="button" class="view-btn" data-view="stocks">Stocks</button>
+      <button type="button" class="view-btn" data-view="mf">Mutual Funds</button>
+      <button type="button" class="view-btn" data-view="report">Full memo</button>
+    </nav>
+    <div class="header-actions">
+      <span class="status-bar" id="statusBar">Loading...</span>
+      <select id="reportSelect" class="btn btn-secondary" style="padding:0.5rem"></select>
+      <button class="btn" id="analyzeBtn" onclick="runAnalysis(false)">Run Analysis</button>
+      <button class="btn btn-secondary" onclick="runAnalysis(true)">From files / cache</button>
+    </div>
+  </header>
+
+  <section class="upload-bar">
+    <div>
+      <strong>Import Groww file</strong>
+      <span class="metric-sub">CSV / Excel / Numbers — stocks or mutual funds</span>
+    </div>
+    <input type="file" id="importFile" accept=".csv,.xlsx,.xlsm,.numbers,.txt">
+    <select id="importKind" class="btn btn-secondary" style="padding:0.4rem">
+      <option value="auto">Auto-detect</option>
+      <option value="stocks">Stocks</option>
+      <option value="mf">Mutual funds</option>
+    </select>
+    <button class="btn btn-secondary" type="button" onclick="uploadGrowwFile()">Upload</button>
+    <span id="importStatus" class="status-bar"></span>
+  </section>
+
+  <main id="app">
+    <div class="loading">Loading portfolio data...</div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
