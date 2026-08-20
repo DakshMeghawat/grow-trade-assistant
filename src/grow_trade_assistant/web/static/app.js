@@ -417,7 +417,7 @@ function renderCharts(sectors, positions, sectorId, barId) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: "right", labels: { color: "#8b9cb3", font: { size: 11 } } } }
+        plugins: { legend: { position: "right", labels: { color: "#e2e8f0", font: { size: 11 } } } }
       }
     });
   }
@@ -438,8 +438,8 @@ function renderCharts(sectors, positions, sectorId, barId) {
         responsive: true, maintainAspectRatio: false, indexAxis: "y",
         plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: "#8b9cb3" }, grid: { color: "#2d3a4f" } },
-          y: { ticks: { color: "#8b9cb3" }, grid: { display: false } }
+          x: { ticks: { color: "#e2e8f0" }, grid: { color: "#334155" } },
+          y: { ticks: { color: "#e2e8f0" }, grid: { display: false } }
         }
       }
     });
