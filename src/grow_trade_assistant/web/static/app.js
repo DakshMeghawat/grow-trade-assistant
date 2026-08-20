@@ -140,6 +140,10 @@ function renderDashboard() {
     document.getElementById("app").innerHTML = renderMemoPage(data);
     return;
   }
+  if (currentView === "research") {
+    document.getElementById("app").innerHTML = renderResearchPage(data);
+    return;
+  }
   if (currentView === "mf") {
     document.getElementById("app").innerHTML = renderMfDashboard(data);
     const mfs = (data.deep_analysis || {}).mutual_funds || [];
@@ -205,6 +209,127 @@ function renderOverview(data) {
     </div>
     <p class="metric-sub" style="margin-top:1.25rem">Stocks / Mutual Funds for tables. <strong>Full memo</strong> for theses. Education only.</p>
   `;
+}
+
+function trendBadge(trend) {
+  const t = trend || "—";
+  const cls = t === "uptrend" ? "badge-keep" : t === "downtrend" ? "badge-trim" : "badge-monitor";
+  return `<span class="badge ${cls}">${t}</span>`;
+}
+
+function rsiLabel(v) {
+  if (v == null || Number.isNaN(v)) return "—";
+  if (v >= 70) return `<span class="rsi-hot">${v.toFixed(0)} overbought</span>`;
+  if (v <= 30) return `<span class="rsi-cold">${v.toFixed(0)} oversold</span>`;
+  return v.toFixed(0);
+}
+
+function renderResearchPage(data) {
+  const cmp = data.benchmark_comparison;
+  const bench = data.benchmark_performance;
+  const positions = (data.portfolio || {}).positions || [];
+  const news = (data.deep_analysis || {}).news || {};
+  const warnings = data.data_warnings || [];
+  const ingestion = data.ingestion || {};
+  const prov = data.provenance || {};
+
+  const benchBlock = cmp ? `
+    <div class="card research-card">
+      <h2>vs ${cmp.benchmark_symbol || "Nifty"} (1 year — snapshot, not backtest)</h2>
+      <div class="metrics metrics-compact">
+        <div class="metric-card">
+          <div class="metric-label">Your stocks (weighted)</div>
+          <div class="metric-value">${fmtPct(cmp.portfolio_weighted_return_1y_pct)}</div>
+          <div class="metric-sub">${cmp.symbols_with_1y_data} names · ${cmp.coverage_pct?.toFixed(0)}% coverage</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">${cmp.benchmark_symbol} buy-and-hold</div>
+          <div class="metric-value">${fmtPct(cmp.benchmark_return_1y_pct)}</div>
+          <div class="metric-sub">Yahoo daily closes</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Gap (not alpha)</div>
+          <div class="metric-value ${cls(cmp.alpha_vs_benchmark_pct)}">${fmtPct(cmp.alpha_vs_benchmark_pct)}</div>
+          <div class="metric-sub">Today's weights applied to 1Y returns</div>
+        </div>
+      </div>
+      <p class="metric-sub">${cmp.notes || ""}</p>
+      ${(cmp.counterpoints || []).map((c) => `<p class="counter">⚠ ${c}</p>`).join("")}
+    </div>` : `<div class="card"><p class="metric-sub">Run analysis to load benchmark comparison.</p></div>`;
+
+  const perfBlock = bench ? `
+    <div class="card">
+      <h2>${bench.symbol} — risk metrics (calculated)</h2>
+      <table class="compact-table"><tbody>
+        <tr><td>Sharpe</td><td>${bench.sharpe_ratio?.toFixed(2) ?? "—"}</td></tr>
+        <tr><td>Max drawdown</td><td>${bench.max_drawdown_pct != null ? bench.max_drawdown_pct.toFixed(1) + "%" : "—"}</td></tr>
+        <tr><td>Ann. volatility</td><td>${bench.annualized_volatility_pct != null ? bench.annualized_volatility_pct.toFixed(1) + "%" : "—"}</td></tr>
+        <tr><td>CAGR (series)</td><td>${bench.cagr_pct != null ? bench.cagr_pct.toFixed(1) + "%" : "—"}</td></tr>
+      </tbody></table>
+      <p class="metric-sub">Deterministic math on benchmark history — not a prediction.</p>
+    </div>` : "";
+
+  const techRows = positions.map((p) => `<tr>
+    <td><strong>${p.trading_symbol}</strong></td>
+    <td>${trendBadge(p.trend)}</td>
+    <td>${p.ma50 != null ? fmt2(p.ma50) : "—"}</td>
+    <td>${p.ma200 != null ? fmt2(p.ma200) : "—"}</td>
+    <td>${rsiLabel(p.rsi14)}</td>
+    <td>${p.macd != null ? p.macd.toFixed(1) : "—"}</td>
+    <td>${p.atr14 != null ? fmt2(p.atr14) : "—"}</td>
+    <td>${p.max_drawdown_1y != null ? p.max_drawdown_1y.toFixed(1) + "%" : "—"}</td>
+    <td>${p.volatility_30d != null ? (p.volatility_30d * 100).toFixed(0) + "%" : "—"}</td>
+  </tr>`).join("");
+
+  const newsBlocks = Object.entries(news).map(([sym, items]) => {
+    if (!items || !items.length) return "";
+    return `<div class="news-block"><h3>${sym}</h3><ul>${items.map((n) =>
+      `<li><a href="${n.link}" target="_blank" rel="noopener">${n.title}</a></li>`
+    ).join("")}</ul></div>`;
+  }).join("");
+
+  const ingestRows = ["holdings", "prices", "ancillary"].map((k) => {
+    const block = ingestion[k];
+    if (!block) return "";
+    const sources = (block.sources || []).map((s) =>
+      `${s.source}: <span class="ingest-${s.status}">${s.status}</span> (${s.records || 0})`
+    ).join(" · ");
+    return `<tr><td>${k}</td><td>${block.status || "—"}</td><td>${sources || "—"}</td></tr>`;
+  }).join("");
+
+  return `
+    <div class="disclaimer">Research view — calculated indicators + context. Not advice. LLM memo text is separate from the numbers below.</div>
+    ${benchBlock}
+    <div class="grid-2">
+      ${perfBlock}
+      <div class="card">
+        <h2>Data quality</h2>
+        <table class="compact-table"><thead><tr><th>Stage</th><th>Status</th><th>Sources</th></tr></thead><tbody>${ingestRows || "<tr><td colspan=3>No ingestion metadata</td></tr>"}</tbody></table>
+        ${warnings.length ? `<ul class="warn-list">${warnings.map((w) => `<li>${w}</li>`).join("")}</ul>` : "<p class='metric-sub'>No data warnings.</p>"}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Technical analysis (deterministic — from cached OHLCV)</h2>
+      <p class="metric-sub">MA50/200, RSI14, MACD, ATR14, drawdown — same library as the pipeline. Verify on your broker chart.</p>
+      <table>
+        <thead><tr>
+          <th>Symbol</th><th>Trend</th><th>MA50</th><th>MA200</th><th>RSI</th><th>MACD</th><th>ATR14</th><th>Max DD 1Y</th><th>Vol 30d</th>
+        </tr></thead>
+        <tbody>${techRows || "<tr><td colspan=9>No positions</td></tr>"}</tbody>
+      </table>
+    </div>
+    ${newsBlocks ? `<div class="card"><h2>Headlines (verify independently)</h2>${newsBlocks}</div>` : ""}
+    ${(data.recommendations || []).length ? `<div class="card"><h2>Rule-based flags</h2>${renderRecommendations(data.recommendations)}</div>` : ""}
+    <p class="metric-sub">${prov.disclaimer || "Education only — not financial advice."}</p>
+  `;
+}
+
+function renderRecommendations(recs) {
+  return recs.slice(0, 8).map((r) => `<div class="suggestion-card">
+    <strong>${r.symbol}</strong> · <span class="badge badge-${r.action === "rebalance-candidate" ? "trim" : r.action === "monitor" ? "monitor" : "keep"}">${r.action}</span>
+    <p>${(r.evidence || [])[0] || ""}</p>
+    ${(r.counterpoints || [])[0] ? `<p class="counter">${r.counterpoints[0]}</p>` : ""}
+  </div>`).join("");
 }
 
 function renderMemoPage(data) {
@@ -338,12 +463,14 @@ function renderHoldingsTable(positions) {
       <td class="${cls(p.unrealized_pnl)}">${fmt(p.unrealized_pnl)}</td>
       <td class="${cls(p.unrealized_pnl_pct)}">${fmtPct(p.unrealized_pnl_pct)}</td>
       <td>${p.weight_pct?.toFixed(1)}%</td>
+      <td>${trendBadge(p.trend)}</td>
+      <td>${p.rsi14 != null ? p.rsi14.toFixed(0) : "—"}</td>
     </tr>`;
   }).join("");
   return `<table>
     <thead><tr>
       <th>Symbol</th><th>Qty</th><th>Bought price</th><th>Sell price (today)</th>
-      <th>Invested</th><th>If sold today</th><th>P&L ₹</th><th>P&L %</th><th>Weight</th>
+      <th>Invested</th><th>If sold today</th><th>P&L ₹</th><th>P&L %</th><th>Weight</th><th>Trend</th><th>RSI</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;

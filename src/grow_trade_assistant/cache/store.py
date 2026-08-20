@@ -140,6 +140,18 @@ class DataStore:
         ).fetchall()
         return {row["exchange_symbol"]: row["ltp"] for row in rows}
 
+    def get_ltp_fetched_at(self, segment: str) -> str | None:
+        """Most recent fetch timestamp for a segment's LTP cache."""
+        row = self._conn.execute(
+            """
+            SELECT fetched_at FROM ltp_cache
+            WHERE segment = ?
+            ORDER BY fetched_at DESC LIMIT 1
+            """,
+            (segment,),
+        ).fetchone()
+        return row["fetched_at"] if row else None
+
     def upsert_candles(
         self,
         exchange: str,

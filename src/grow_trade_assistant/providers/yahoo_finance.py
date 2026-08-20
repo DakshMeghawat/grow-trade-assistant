@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 from typing import Any
+
+from grow_trade_assistant.features.indicators import (
+    annualized_volatility_pct,
+    compute_technical_features,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +29,10 @@ class StockMarketData:
     week_52_low: float | None
     ma50: float | None
     ma200: float | None
+    rsi14: float | None = None
+    macd: float | None = None
+    macd_signal: float | None = None
+    atr14: float | None = None
     source: str = "yahoo_finance"
 
 
@@ -65,11 +73,10 @@ class YahooFinanceProvider:
             last = float(closes[-1])
             prev = float(closes[-2]) if len(closes) > 1 else last
 
-            ret_1y = _period_return(closes, 252)
-            ret_3y = _period_return(closes, min(756, len(closes) - 1))
-            vol = _volatility(closes, 30)
-            ma50 = _ma(closes, 50)
-            ma200 = _ma(closes, 200)
+            features = compute_technical_features(closes)
+            ret_1y = features.return_1y_pct
+            ret_3y = features.return_3y_pct
+            vol = annualized_volatility_pct(closes, 30)
 
             hi_52 = float(hist["High"].tail(252).max()) if len(hist) >= 252 else float(hist["High"].max())
             lo_52 = float(hist["Low"].tail(252).min()) if len(hist) >= 252 else float(hist["Low"].min())
@@ -83,8 +90,12 @@ class YahooFinanceProvider:
                 volatility_30d=vol,
                 week_52_high=hi_52,
                 week_52_low=lo_52,
-                ma50=ma50,
-                ma200=ma200,
+                ma50=features.ma50,
+                ma200=features.ma200,
+                rsi14=features.rsi14,
+                macd=features.macd,
+                macd_signal=features.macd_signal,
+                atr14=features.atr14,
             )
         except Exception as exc:
             logger.warning("Yahoo full data failed for %s: %s", symbol, exc)
@@ -107,33 +118,3 @@ class YahooFinanceProvider:
             logger.warning("Yahoo candles failed for %s: %s", symbol, exc)
             return []
 
-
-def _ma(closes: list[float], window: int) -> float | None:
-    if len(closes) < window:
-        return None
-    return sum(closes[-window:]) / window
-
-
-def _period_return(closes: list[float], days: int) -> float | None:
-    if len(closes) <= days:
-        return None
-    old = closes[-days - 1]
-    if old <= 0:
-        return None
-    return (closes[-1] - old) / old * 100
-
-
-def _volatility(closes: list[float], window: int = 30) -> float | None:
-    if len(closes) < window + 2:
-        return None
-    import math
-    returns = []
-    segment = closes[-(window + 1):]
-    for i in range(1, len(segment)):
-        if segment[i - 1] > 0:
-            returns.append((segment[i] - segment[i - 1]) / segment[i - 1])
-    if len(returns) < 2:
-        return None
-    mean = sum(returns) / len(returns)
-    var = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
-    return math.sqrt(var) * math.sqrt(252) * 100

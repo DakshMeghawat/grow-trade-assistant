@@ -96,6 +96,52 @@ def render_deep_markdown(payload: dict[str, Any], format_inr: Callable[[float], 
     if memo.get("sources_note"):
         lines.extend([f"*{memo['sources_note']}*", ""])
 
+    cmp = payload.get("benchmark_comparison")
+    if cmp:
+        lines.extend([
+            "## Research — vs benchmark (snapshot, not backtest)",
+            "",
+            f"| | 1Y return |",
+            f"|--|--:|",
+            f"| Your stocks (weighted, today's mix) | {cmp.get('portfolio_weighted_return_1y_pct', 0):+.1f}% |",
+            f"| {cmp.get('benchmark_symbol', 'Nifty')} buy-and-hold | {cmp.get('benchmark_return_1y_pct', 0):+.1f}% |",
+            f"| Gap (not guaranteed alpha) | {cmp.get('alpha_vs_benchmark_pct', 0):+.1f}% |",
+            "",
+            f"*{cmp.get('notes', '')}*",
+            "",
+        ])
+        for cp in cmp.get("counterpoints", []):
+            lines.append(f"- Counterpoint: {cp}")
+        lines.append("")
+
+    bench_perf = payload.get("benchmark_performance")
+    if bench_perf:
+        lines.extend([
+            f"### {bench_perf.get('symbol', 'Benchmark')} risk metrics (calculated)",
+            "",
+            f"- Sharpe: {bench_perf.get('sharpe_ratio')}",
+            f"- Max drawdown: {bench_perf.get('max_drawdown_pct')}%",
+            f"- Ann. volatility: {bench_perf.get('annualized_volatility_pct')}%",
+            "",
+        ])
+
+    lines.extend([
+        "## Technical indicators (calculated from OHLCV)",
+        "",
+        "| Symbol | Trend | MA50 | MA200 | RSI14 | MACD | ATR14 | Max DD 1Y |",
+        "|--------|-------|------|-------|-------|------|-------|-----------|",
+    ])
+    for p in portfolio["positions"]:
+        lines.append(
+            f"| {p['trading_symbol']} | {p.get('trend', '—')} | "
+            f"{format_inr(p['ma50']) if p.get('ma50') else '—'} | "
+            f"{format_inr(p['ma200']) if p.get('ma200') else '—'} | "
+            f"{p.get('rsi14', 0):.0f} | {p.get('macd', 0):.1f} | "
+            f"{format_inr(p['atr14']) if p.get('atr14') else '—'} | "
+            f"{p.get('max_drawdown_1y', 0):.1f}% |"
+        )
+    lines.append("")
+
     lines.extend([
         "---",
         "",

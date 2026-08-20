@@ -1,9 +1,28 @@
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
+
+from grow_trade_assistant.features.indicators import (
+    classify_trend,
+    compute_technical_features,
+    max_drawdown_pct,
+    moving_average,
+    annualized_volatility,
+)
+
+__all__ = [
+    "PositionMetrics",
+    "PortfolioSummary",
+    "build_position_metrics",
+    "classify_trend",
+    "compare_snapshots",
+    "format_inr",
+    "max_drawdown",
+    "moving_average",
+    "summarize_portfolio",
+    "volatility",
+]
 
 
 @dataclass
@@ -25,6 +44,10 @@ class PositionMetrics:
     max_drawdown_1y: float | None = None
     week_52_high: float | None = None
     week_52_low: float | None = None
+    rsi14: float | None = None
+    macd: float | None = None
+    macd_signal: float | None = None
+    atr14: float | None = None
 
 
 @dataclass
@@ -40,51 +63,14 @@ class PortfolioSummary:
     concentration_warnings: list[str] = field(default_factory=list)
 
 
-def moving_average(closes: list[float], window: int) -> float | None:
-    if len(closes) < window:
-        return None
-    return sum(closes[-window:]) / window
-
-
 def volatility(closes: list[float], window: int = 30) -> float | None:
-    if len(closes) < window + 1:
-        return None
-    returns = []
-    segment = closes[-(window + 1) :]
-    for i in range(1, len(segment)):
-        prev = segment[i - 1]
-        if prev == 0:
-            continue
-        returns.append((segment[i] - prev) / prev)
-    if len(returns) < 2:
-        return None
-    mean = sum(returns) / len(returns)
-    variance = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
-    return math.sqrt(variance) * math.sqrt(252)
+    """Backward-compatible alias — annualized vol as decimal."""
+    return annualized_volatility(closes, window)
 
 
 def max_drawdown(closes: list[float]) -> float | None:
-    if len(closes) < 2:
-        return None
-    peak = closes[0]
-    max_dd = 0.0
-    for price in closes:
-        if price > peak:
-            peak = price
-        if peak > 0:
-            dd = (peak - price) / peak
-            max_dd = max(max_dd, dd)
-    return max_dd * 100
-
-
-def classify_trend(price: float, ma50: float | None, ma200: float | None) -> str:
-    if ma50 is None or ma200 is None:
-        return "insufficient_data"
-    if price > ma50 > ma200:
-        return "uptrend"
-    if price < ma50 < ma200:
-        return "downtrend"
-    return "mixed"
+    """Backward-compatible alias."""
+    return max_drawdown_pct(closes)
 
 
 def build_position_metrics(
@@ -109,9 +95,8 @@ def build_position_metrics(
 
         candles = candles_by_symbol.get(symbol, [])
         closes = [c["close"] for c in candles]
-        ma50 = moving_average(closes, 50)
-        ma200 = moving_average(closes, 200)
-        trend = classify_trend(last, ma50, ma200)
+        features = compute_technical_features(closes, candles if candles else None)
+        trend = classify_trend(last, features.ma50, features.ma200)
 
         positions.append(
             PositionMetrics(
@@ -125,11 +110,15 @@ def build_position_metrics(
                 unrealized_pnl=pnl,
                 unrealized_pnl_pct=pnl_pct,
                 weight_pct=0.0,
-                ma50=ma50,
-                ma200=ma200,
+                ma50=features.ma50,
+                ma200=features.ma200,
                 trend=trend,
-                volatility_30d=volatility(closes),
-                max_drawdown_1y=max_drawdown(closes),
+                volatility_30d=features.volatility_30d_ann,
+                max_drawdown_1y=features.max_drawdown_1y_pct,
+                rsi14=features.rsi14,
+                macd=features.macd,
+                macd_signal=features.macd_signal,
+                atr14=features.atr14,
             )
         )
     return positions
